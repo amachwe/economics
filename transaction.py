@@ -10,13 +10,13 @@ class Ledger(object):
         self.counter = 0
         self.thread_lock = threading.Lock()
 
-    def transfer(self, _from, _to, amount, type="common"):
+    def transfer(self, _from, _to, amount, asset_price=1.0):
 
         with self.thread_lock:
             self.counter += 1
             key = (_from, _to, self.counter, type)
 
-        self.ledger[key] = amount
+        self.ledger[key] = amount*asset_price
 
     def process_transfers(self, balances={}):
 
@@ -71,6 +71,7 @@ net_trans, balances = ledger.process_transfers()
 ledger.validate_net_transactions(net_trans)
 
 print(balances)
+print(net_trans)
 
 
 
