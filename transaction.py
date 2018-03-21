@@ -2,6 +2,13 @@ import threading
 import random as rnd
 
 
+class TransactionType(object):
+
+    def __init__(self):
+
+        self.DEPOSIT = "deposit"
+        self.BANK_TRANSFER = "bank_transfer"
+        
 
 class Ledger(object):
 
@@ -10,33 +17,51 @@ class Ledger(object):
         self.counter = 0
         self.thread_lock = threading.Lock()
 
+    def deposit(self, _to, amount):
+
+        with self.thread_lock:
+            self.counter += 1
+
+        key = ("", _to, self.counter, TransactionType.DEPOSIT)
+
+        self.ledger[key] = amount
+
     def transfer(self, _from, _to, amount, asset_price=1.0):
 
         with self.thread_lock:
             self.counter += 1
-            key = (_from, _to, self.counter, type)
+
+        key = (_from, _to, self.counter, TransactionType.BANK_TRANSFER)
 
         self.ledger[key] = amount*asset_price
 
     def process_transfers(self, balances={}):
 
         net_transactions = {}
+        deposits = {}
 
         for key in self.ledger.keys():
-            clearance_key_A = (key[0], key[1])
-            clearance_key_B = (key[1], key[0])
 
             amount = self.ledger[key]
+            tx_type = key[3]
 
-            net_transactions[clearance_key_A] = net_transactions.get(clearance_key_A, 0) - amount
-            net_transactions[clearance_key_B] = net_transactions.get(clearance_key_B, 0) + amount
+            if tx_type == TransactionType.BANK_TRANSFER:
+                clearance_key_A = (key[0], key[1])
+                clearance_key_B = (key[1], key[0])
 
-            balances[clearance_key_A[0]] = balances.get(clearance_key_A[0], 0) - amount
-            balances[clearance_key_A[1]] = balances.get(clearance_key_A[1], 0) + amount
+                net_transactions[clearance_key_A] = net_transactions.get(clearance_key_A, 0) - amount
+                net_transactions[clearance_key_B] = net_transactions.get(clearance_key_B, 0) + amount
 
-        return net_transactions, balances
+                balances[clearance_key_A[0]] = balances.get(clearance_key_A[0], 0) - amount
+                balances[clearance_key_A[1]] = balances.get(clearance_key_A[1], 0) + amount
 
-    def validate_net_transactions(self, net_transactions):
+            elif tx_type == TransactionType.DEPOSIT:
+                deposits[key[1]] = deposits.get(key[1], 0) + amount
+
+        return net_transactions, balances, deposits
+
+    @staticmethod
+    def validate_net_transactions(net_transactions):
 
         result = 0
         for value in net_transactions.values():
@@ -66,12 +91,16 @@ for i in range(0, 1000):
 
     ledger.transfer(banks[id_A],banks[id_B],amt)
 
-net_trans, balances = ledger.process_transfers()
+    amt = rnd.randrange(min_amount, max_amount)
+    ledger.deposit(banks[id_B], amt)
 
-ledger.validate_net_transactions(net_trans)
+net_trans, balances, deposits = ledger.process_transfers()
+
+Ledger.validate_net_transactions(net_trans)
 
 print(balances)
 print(net_trans)
+print(deposits)
 
 
 
