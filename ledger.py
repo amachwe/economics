@@ -4,11 +4,10 @@ import random as rnd
 
 class TransactionType(object):
 
-    def __init__(self):
+        DEPOSIT = "deposit"
+        WITHDRAWAL = "withdrawal"
+        BANK_TRANSFER = "bank_transfer"
 
-        self.DEPOSIT = "deposit"
-        self.BANK_TRANSFER = "bank_transfer"
-        
 
 class Ledger(object):
 
@@ -26,6 +25,15 @@ class Ledger(object):
 
         self.ledger[key] = amount
 
+    def withdrawal(self, _to, amount):
+
+        with self.thread_lock:
+            self.counter += 1
+
+        key = ("", _to, self.counter, TransactionType.WITHDRAWAL)
+
+        self.ledger[key] = -amount
+
     def transfer(self, _from, _to, amount, asset_price=1.0):
 
         with self.thread_lock:
@@ -35,10 +43,10 @@ class Ledger(object):
 
         self.ledger[key] = amount*asset_price
 
-    def process_transfers(self, balances={}):
+    def process_transfers(self):
 
         net_transactions = {}
-        deposits = {}
+        net_deposits = {}
 
         for key in self.ledger.keys():
 
@@ -52,13 +60,10 @@ class Ledger(object):
                 net_transactions[clearance_key_A] = net_transactions.get(clearance_key_A, 0) - amount
                 net_transactions[clearance_key_B] = net_transactions.get(clearance_key_B, 0) + amount
 
-                balances[clearance_key_A[0]] = balances.get(clearance_key_A[0], 0) - amount
-                balances[clearance_key_A[1]] = balances.get(clearance_key_A[1], 0) + amount
+            elif tx_type == TransactionType.DEPOSIT or tx_type == TransactionType.WITHDRAWAL:
+                net_deposits[key[1]] = net_deposits.get(key[1], 0) + amount
 
-            elif tx_type == TransactionType.DEPOSIT:
-                deposits[key[1]] = deposits.get(key[1], 0) + amount
-
-        return net_transactions, balances, deposits
+        return net_transactions, net_deposits
 
     @staticmethod
     def validate_net_transactions(net_transactions):
@@ -71,36 +76,40 @@ class Ledger(object):
             raise ValueError("Result not zero - mismatched transactions: "+str(result))
 
 
-ledger = Ledger()
+if __name__ == 'main':
+    ledger = Ledger()
 
-banks = ["A", "B", "C", "D"]
-max_amount = 2000
-min_amount = 10
+    banks = ["A", "B", "C", "D"]
+    max_amount = 2000
+    min_amount = 10
 
-for i in range(0, 1000):
-    id_A = rnd.randint(0, len(banks)-1)
-    id_B = rnd.randint(0, len(banks)-1)
+    for i in range(0, 1000):
+        id_A = rnd.randint(0, len(banks)-1)
+        id_B = rnd.randint(0, len(banks)-1)
 
-    if id_A == id_B:
-        if id_B == len(banks) - 1:
-            id_A = id_B - 1
-        elif id_B == 0:
-            id_A = 1
+        if id_A == id_B:
+            if id_B == len(banks) - 1:
+                id_A = id_B - 1
+            elif id_B == 0:
+                id_A = 1
 
-    amt = rnd.randrange(min_amount,max_amount)
+        amt = rnd.randrange(min_amount,max_amount)
 
-    ledger.transfer(banks[id_A],banks[id_B],amt)
+        ledger.transfer(banks[id_A],banks[id_B],amt)
 
-    amt = rnd.randrange(min_amount, max_amount)
-    ledger.deposit(banks[id_B], amt)
+        amt = rnd.randrange(min_amount, max_amount)
+        if rnd.random()>0.5:
+            ledger.deposit(banks[id_B], amt)
+        else:
+            ledger.withdrawal(banks[id_B], amt)
 
-net_trans, balances, deposits = ledger.process_transfers()
+    net_trans, balances, deposits = ledger.process_transfers()
 
-Ledger.validate_net_transactions(net_trans)
+    Ledger.validate_net_transactions(net_trans)
 
-print(balances)
-print(net_trans)
-print(deposits)
+    print(balances)
+    print(net_trans)
+    print(deposits)
 
 
 
